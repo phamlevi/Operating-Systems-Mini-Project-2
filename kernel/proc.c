@@ -5,11 +5,64 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "pstat.h"
+
+
 
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
 } ptable;
+
+void
+ps(void)
+{
+  struct proc *p;
+  cprintf("PID\tState\t\tName\tSize\tParent\n");
+  cprintf("---\t-----\t\t----\t----\t------\n");
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state == UNUSED) continue;
+    cprintf("%d\t", p->pid);
+    if(p->state == SLEEPING) cprintf("sleeping\t");
+    else if(p->state == RUNNABLE) cprintf("runnable\t");
+    else if(p->state == RUNNING) cprintf("running\t\t");
+    else if(p->state == ZOMBIE) cprintf("zombie\t\t");
+    else cprintf("???\t\t");
+
+    cprintf("%s\t%d\t", p->name, p->sz);
+    if(p->parent) cprintf("%d\n", p->parent->pid);
+    else cprintf("-\n");
+  }
+  release(&ptable.lock);
+}
+
+int
+getpinfo(struct pstat *ps)
+{
+  if(ps == 0) return -1;
+  acquire(&ptable.lock);
+  struct proc *p;
+  int i = 0;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++, i++){
+    if(p->state == UNUSED){
+      ps->inuse[i] = 0;
+      continue;
+    }
+    ps->inuse[i] = 1;
+    ps->pid[i] = p->pid;
+    ps->ticks[i] = p->numTicks;
+    ps->wait_ticks[i] = p->wait_ticks;
+    ps->start_tick[i] = p->creation_time;
+    ps->first_run[i] = p->first_run_time;
+    ps->end_tick[i] = p->completion_time;
+    int j=0; for(; j<16 && p->name[j]; j++) ps->name[i][j] = p->name[j];
+    ps->name[i][j] = 0;
+  }
+  release(&ptable.lock);
+  return 0;
+}
+
 
 static struct proc *initproc;
 
@@ -45,6 +98,13 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  
+  p->numTicks = 0;
+  p->wait_ticks = 0;
+  p->creation_time = ticks;
+  p->first_run_time = -1;
+  p->completion_time = 0;
+
   release(&ptable.lock);
 
   // Allocate kernel stack if possible.
@@ -196,6 +256,7 @@ exit(void)
     }
   }
 
+  proc->completion_time = ticks;
   // Jump into the scheduler, never to return.
   proc->state = ZOMBIE;
   sched();
@@ -261,8 +322,12 @@ scheduler(void)
     // Enable interrupts on this processor.
     sti();
 
+
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+    for(struct proc *q = ptable.proc; q < &ptable.proc[NPROC]; q++){
+      if(q->state == RUNNABLE) q->wait_ticks++;
+    }
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
@@ -273,6 +338,9 @@ scheduler(void)
       proc = p;
       switchuvm(p);
       p->state = RUNNING;
+      if(p->first_run_time < 0)
+      p->first_run_time = ticks;
+      p->numTicks++;
       swtch(&cpu->scheduler, proc->context);
       switchkvm();
 
