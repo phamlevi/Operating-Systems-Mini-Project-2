@@ -1,0 +1,28 @@
+# Compiled binaries and object files
+*.o
+*.d
+kernel
+init
+sh
+cat
+echo
+forktest
+grep
+kill
+ln
+ls
+mkdir
+mknod
+openfile
+stressfs
+usertests
+wc
+zombie
+
+# Temporary files and build artifacts
+*.img # Disk images if generated
+tags # ctags/etags files
+.DS_Store # macOS specific
+*~ # Emacs backup files
+.#* # Emacs lock files
+*.swp # Vim swap files
