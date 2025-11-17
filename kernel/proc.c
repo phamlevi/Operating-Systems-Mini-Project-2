@@ -52,12 +52,7 @@ getpinfo(struct pstat *ps)
     ps->inuse[i] = 1;
     ps->pid[i] = p->pid;
     ps->ticks[i] = p->numTicks;
-    ps->wait_ticks[i] = p->wait_ticks;
-    ps->start_tick[i] = p->creation_time;
-    ps->first_run[i] = p->first_run_time;
-    ps->end_tick[i] = p->completion_time;
-    int j=0; for(; j<16 && p->name[j]; j++) ps->name[i][j] = p->name[j];
-    ps->name[i][j] = 0;
+    ps->size[i] = p->sz;
   }
   release(&ptable.lock);
   return 0;
@@ -98,12 +93,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-  
   p->numTicks = 0;
-  p->wait_ticks = 0;
-  p->creation_time = ticks;
-  p->first_run_time = -1;
-  p->completion_time = 0;
 
   release(&ptable.lock);
 
@@ -242,6 +232,9 @@ exit(void)
   iput(proc->cwd);
   proc->cwd = 0;
 
+  // // Record the process's completion time.
+  // proc->completion_time = ticks;
+
   acquire(&ptable.lock);
 
   // Parent might be sleeping in wait().
@@ -256,7 +249,7 @@ exit(void)
     }
   }
 
-  proc->completion_time = ticks;
+  
   // Jump into the scheduler, never to return.
   proc->state = ZOMBIE;
   sched();
@@ -325,9 +318,7 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(struct proc *q = ptable.proc; q < &ptable.proc[NPROC]; q++){
-      if(q->state == RUNNABLE) q->wait_ticks++;
-    }
+
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
@@ -338,8 +329,6 @@ scheduler(void)
       proc = p;
       switchuvm(p);
       p->state = RUNNING;
-      if(p->first_run_time < 0)
-      p->first_run_time = ticks;
       p->numTicks++;
       swtch(&cpu->scheduler, proc->context);
       switchkvm();

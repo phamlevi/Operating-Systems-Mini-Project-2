@@ -11,6 +11,7 @@ struct pipe;
 struct proc;
 struct spinlock;
 struct stat;
+struct pstat;
 
 // bio.c
 void            binit(void);
@@ -111,7 +112,6 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
-struct proc* myproc(void);
 void            ps(void);
 int             getpinfo(struct pstat *);
 

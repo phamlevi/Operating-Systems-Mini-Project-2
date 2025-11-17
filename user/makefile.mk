@@ -17,6 +17,9 @@ USER_PROGS := \
 	usertests\
 	wc\
 	pstester\
+	childrenTester\
+	accessTable\
+	store\
 	zombie
 
 USER_PROGS := $(addprefix user/, $(USER_PROGS))
